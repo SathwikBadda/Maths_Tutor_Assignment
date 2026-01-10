@@ -1,0 +1,31 @@
+# Core LLM
+anthropic==0.39.0
+langchain==0.3.0
+langgraph==0.2.45
+langchain-anthropic==0.3.0
+
+# Vector Store & Embeddings
+faiss-cpu==1.9.0
+sentence-transformers==3.3.1
+
+# OCR & Speech (macOS-safe)
+openai-whisper==20240930
+torch==2.5.1
+pytesseract
+opencv-python
+
+# Symbolic Math
+sympy==1.13.1
+
+# UI
+streamlit==1.40.1
+
+# Utilities
+pyyaml==6.0.2
+pydantic==2.10.3
+python-dotenv==1.0.1
+Pillow==11.0.0
+numpy
+
+# Logging
+colorlog==6.9.0

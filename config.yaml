@@ -1,0 +1,100 @@
+# LLM Configuration
+llm:
+  model: "claude-3-haiku-20240307"
+  temperature: 0.1
+  max_tokens: 4000
+  api_key_env: "ANTHROPIC_API_KEY"
+
+# RAG Configuration
+rag:
+  embedding_model: "/Users/sathwikbadda/PlantAI/Maths_Tutor_Assignment/rag/embedding_model/mixedbread-ai_mxbai-embed-large-v1"
+  vector_db_path: "./rag/vector_store/faiss_index"
+  knowledge_base_path: "./rag/knowledge_base"
+  chunk_size: 512
+  chunk_overlap: 50
+  top_k: 5
+  similarity_threshold: 0.7
+
+# OCR Configuration
+ocr:
+  engine: "paddleocr"
+  confidence_threshold: 0.8
+  lang: "en"
+  use_angle_cls: true
+  use_gpu: false
+
+# ASR Configuration
+asr:
+  model: "base"
+  language: "en"
+  device: "cpu"
+
+# HITL Thresholds
+hitl:
+  ocr_confidence_min: 0.7
+  parsing_confidence_min: 0.8
+  verification_confidence_min: 0.85
+  retrieval_confidence_min: 0.6
+
+# Agent Configuration
+agents:
+  parser:
+    timeout: 30
+  solver:
+    max_steps: 20
+    use_symbolic_math: true
+  verifier:
+    num_test_cases: 5
+    use_symbolic_verification: true
+    use_numerical_verification: true
+
+# Memory Configuration
+memory:
+  storage_path: "./memory/storage/sessions"
+  max_session_length: 50
+  retention_days: 90
+  enable_learning: true
+
+# UI Configuration
+ui:
+  show_agent_trace: true
+  show_retrieved_context: true
+  enable_feedback: true
+  page_title: "Math Mentor - JEE AI Tutor"
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  log_file: "./logs/math_mentor.log"
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Scope Definition
+scope:
+  allowed_topics:
+    - algebra
+    - probability
+    - calculus
+    - linear_algebra
+  allowed_subtopics:
+    algebra:
+      - quadratic_equations
+      - polynomials
+      - inequalities
+      - sequences_series
+    calculus:
+      - limits
+      - derivatives
+      - optimization
+      - integration_basic
+    probability:
+      - basic_probability
+      - conditional_probability
+      - distributions
+      - combinatorics
+    linear_algebra:
+      - matrices
+      - determinants
+      - vector_spaces
+      - linear_transformations
