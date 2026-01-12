@@ -9,7 +9,7 @@ import os
 class Embedder:
     """
     Text embedder using mixedbread-ai/mxbai-embed-large-v1.
-    Uses local model if already downloaded.
+    Checks for model in rag/embedding_model, downloads if not present.
     """
 
     def __init__(self, model_name: str = "mixedbread-ai/mxbai-embed-large-v1"):
@@ -17,26 +17,25 @@ class Embedder:
         Initialize embedder.
 
         Args:
-            model_name: Local model path OR HuggingFace model name
+            model_name: HuggingFace model name (default: mixedbread-ai/mxbai-embed-large-v1)
         """
         self.logger = logging.getLogger("embedder")
         self.logger.info(f"Initializing embedding model: {model_name}")
 
-        # 🔒 Force offline mode (prevents re-download)
-        os.environ["HF_HUB_OFFLINE"] = "1"
+        # Path to local embedding model directory
+        local_model_dir = Path(__file__).parent / "embedding_model" / model_name.replace("/", "-")
+        local_model_dir = local_model_dir.resolve()
 
-        # Resolve path safely
-        model_path = Path(model_name).expanduser()
-
-        if model_path.exists():
-            self.logger.info(f"Loading embedding model from local path: {model_path}")
-            self.model = SentenceTransformer(str(model_path))
+        if local_model_dir.exists():
+            self.logger.info(f"Loading embedding model from local path: {local_model_dir}")
+            self.model = SentenceTransformer(str(local_model_dir))
         else:
-            # Model already cached in HF cache → load without download
-            self.logger.info(
-                f"Loading embedding model from HuggingFace cache (offline): {model_name}"
-            )
+            self.logger.info(f"Model not found locally. Downloading from HuggingFace: {model_name}")
+            # Download and save model to local_model_dir
             self.model = SentenceTransformer(model_name)
+            local_model_dir.parent.mkdir(parents=True, exist_ok=True)
+            self.model.save(str(local_model_dir))
+            self.logger.info(f"Model downloaded and saved to: {local_model_dir}")
 
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
         self.logger.info(f"Embedder initialized with dimension: {self.embedding_dim}")
