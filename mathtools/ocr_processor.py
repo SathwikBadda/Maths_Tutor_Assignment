@@ -75,23 +75,54 @@ class OCRProcessor:
             all_text = []
             confidences = []
 
-            for line in lines:
+            # Debug: inspect first line structure
+            if len(lines) > 0:
+                self.logger.info(f"First line structure: {lines[0]}")
+                self.logger.info(f"First line type: {type(lines[0])}, len: {len(lines[0]) if isinstance(lines[0], (list, tuple)) else 'N/A'}")
+
+            for idx, line in enumerate(lines):
                 try:
-                    # Defensive unpacking - handle different structures
-                    if not isinstance(line, (list, tuple)) or len(line) < 2:
-                        self.logger.warning(f"Skipping malformed line: {line}")
+                    # PaddleOCR returns: [[bbox_points], (text, confidence)]
+                    # where bbox_points is a list of 4 coordinate pairs
+                    
+                    if not isinstance(line, (list, tuple)):
+                        self.logger.warning(f"Line {idx} is not list/tuple: {type(line)}")
+                        continue
+                    
+                    if len(line) < 2:
+                        self.logger.warning(f"Line {idx} has insufficient elements: {len(line)}")
                         continue
                     
                     bbox = line[0]
-                    text_conf = line[1]
+                    text_info = line[1]
                     
-                    # text_conf should be [text, confidence]
-                    if not isinstance(text_conf, (list, tuple)) or len(text_conf) < 2:
-                        self.logger.warning(f"Skipping malformed text_conf: {text_conf}")
+                    # Debug first few lines
+                    if idx < 3:
+                        self.logger.info(f"Line {idx} - bbox type: {type(bbox)}, text_info type: {type(text_info)}, text_info: {text_info}")
+                    
+                    # text_info should be (text, confidence) tuple
+                    if isinstance(text_info, (list, tuple)):
+                        if len(text_info) >= 2:
+                            text = str(text_info[0])
+                            confidence = float(text_info[1])
+                        elif len(text_info) == 1:
+                            # Sometimes only text is returned
+                            text = str(text_info[0])
+                            confidence = 1.0
+                        else:
+                            self.logger.warning(f"Line {idx} text_info is empty")
+                            continue
+                    elif isinstance(text_info, str):
+                        # Direct string
+                        text = text_info
+                        confidence = 1.0
+                    else:
+                        self.logger.warning(f"Line {idx} text_info unexpected type: {type(text_info)}")
                         continue
-                        
-                    text = str(text_conf[0])
-                    confidence = float(text_conf[1])
+
+                    # Skip empty text
+                    if not text or text.strip() == "":
+                        continue
 
                     blocks.append({
                         "text": text,
@@ -103,11 +134,14 @@ class OCRProcessor:
                     confidences.append(confidence)
                     
                 except Exception as line_error:
-                    self.logger.warning(f"Error parsing line: {line_error}")
+                    self.logger.error(f"Error parsing line {idx}: {line_error}", exc_info=True)
                     continue
+
+            self.logger.info(f"Parsed {len(all_text)} text blocks from {len(lines)} lines")
 
             # Build response
             if not all_text:
+                self.logger.warning("No text extracted after parsing all lines")
                 return self._empty_response()
                 
             return self._build_response(blocks, all_text, confidences)
@@ -155,19 +189,36 @@ class OCRProcessor:
             all_text = []
             confidences = []
 
-            for line in lines:
+            for idx, line in enumerate(lines):
                 try:
-                    if not isinstance(line, (list, tuple)) or len(line) < 2:
+                    if not isinstance(line, (list, tuple)):
+                        continue
+                    
+                    if len(line) < 2:
                         continue
                     
                     bbox = line[0]
-                    text_conf = line[1]
+                    text_info = line[1]
                     
-                    if not isinstance(text_conf, (list, tuple)) or len(text_conf) < 2:
+                    # text_info should be (text, confidence) tuple
+                    if isinstance(text_info, (list, tuple)):
+                        if len(text_info) >= 2:
+                            text = str(text_info[0])
+                            confidence = float(text_info[1])
+                        elif len(text_info) == 1:
+                            text = str(text_info[0])
+                            confidence = 1.0
+                        else:
+                            continue
+                    elif isinstance(text_info, str):
+                        text = text_info
+                        confidence = 1.0
+                    else:
                         continue
-                        
-                    text = str(text_conf[0])
-                    confidence = float(text_conf[1])
+
+                    # Skip empty text
+                    if not text or text.strip() == "":
+                        continue
 
                     blocks.append({
                         "text": text,
