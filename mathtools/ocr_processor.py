@@ -25,7 +25,7 @@ class OCRProcessor:
         self.ocr = PaddleOCR(
             use_angle_cls=config.get('use_angle_cls', True),
             lang=config.get('lang', 'en'),
-            use_gpu=config.get('use_gpu', False),
+            
             show_log=False
         )
         

@@ -21,7 +21,7 @@ ocr:
   confidence_threshold: 0.8
   lang: "en"
   use_angle_cls: true
-  use_gpu: false
+  
 
 # ASR Configuration
 asr:
