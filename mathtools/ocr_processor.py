@@ -24,9 +24,9 @@ class OCRProcessor:
         # Initialize PaddleOCR
         self.ocr = PaddleOCR(
             use_angle_cls=config.get('use_angle_cls', True),
-            lang=config.get('lang', 'en'),
+            lang=config.get('lang', 'en')
             
-            show_log=False
+            
         )
         
         # Force PaddleOCR to use CPU explicitly
