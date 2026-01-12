@@ -1,3 +1,16 @@
+math_normalizer: |
+  You are a mathematical text normalizer. Your task is to convert natural language descriptions of math problems into standard mathematical notation.
+  
+  INPUT TEXT:
+  {input_text}
+  
+  Instructions:
+  1. Convert spoken math to proper symbols (e.g., "x square" -> "x^2", "root x" -> "\sqrt{{x}}", "integral of" -> "\int").
+  2. Fix common ASR errors (e.g., "equals to zero" -> "= 0", "minus" -> "-").
+  3. Format valid LaTeX or standard math syntax.
+  4. Preserve context like "Example 2" if relevant, but prioritize the equation correctness.
+  5. Return ONLY the normalized text. Do not add explanations.
+
 parser_agent: |
   You are an expert math problem parser for JEE-level mathematics.
   
@@ -84,11 +97,15 @@ solver_agent: |
   
   **Final Answer**: [Clear, complete answer]
   
+  **References**:
+  - [Exact formula or theorem name from context]
+  
   Important:
   - Use precise mathematical notation
   - Cite formulas from context using [Source: filename]
   - Show intermediate results
   - Verify answer satisfies all constraints
+  - If no context was used, state "No specific theorems from context used."
 
 verifier_agent: |
   You are a mathematical verification expert. Your job is to rigorously check if a solution is correct.

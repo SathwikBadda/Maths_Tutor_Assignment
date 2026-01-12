@@ -4,6 +4,8 @@ from pathlib import Path
 import uuid
 import os
 from dotenv import load_dotenv
+from audio_recorder_streamlit import audio_recorder
+import tempfile
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -15,6 +17,7 @@ from orchestration.workflow import MathMentorWorkflow
 from memory.session_manager import SessionManager
 from mathtools.ocr_processor import OCRProcessor
 from mathtools.speech_to_text import SpeechToTextProcessor
+from agents.math_normalizer_agent import MathNormalizerAgent
 
 # Load environment variables
 load_dotenv()
@@ -48,13 +51,18 @@ def init_system():
     ocr = OCRProcessor(config.get('ocr', {}))
     asr = SpeechToTextProcessor(config.get('asr', {}))
     
+    # Initialize Math Normalizer
+    # Fallback to default prompt if not in prompts.yaml yet (safety)
+    normalizer_prompt = prompts.get('math_normalizer', "Convert to math: {input_text}")
+    math_normalizer = MathNormalizerAgent(config, normalizer_prompt)
+    
     logger.info("System initialization complete")
     
-    return workflow, memory, ocr, asr, config, logger
+    return workflow, memory, ocr, asr, math_normalizer, config, logger
 
 
 # Initialize system
-workflow, memory, ocr, asr, config, logger = init_system()
+workflow, memory, ocr, asr, math_normalizer, config, logger = init_system()
 
 # Session state
 if 'session_id' not in st.session_state:
@@ -63,6 +71,15 @@ if 'session_id' not in st.session_state:
 
 if 'interaction_history' not in st.session_state:
     st.session_state.interaction_history = []
+
+if 'recorded_audio' not in st.session_state:
+    st.session_state.recorded_audio = None
+
+if 'transcribed_text' not in st.session_state:
+    st.session_state.transcribed_text = None
+
+if 'extracted_text_content' not in st.session_state:
+    st.session_state.extracted_text_content = None
 
 # Title
 st.title("🧮 Math Mentor - JEE AI Tutor")
@@ -100,7 +117,7 @@ with tab1:
     # Input method selection
     input_method = st.radio(
         "Select input method:",
-        ["Text", "Image (OCR)", "Audio"],
+        ["Text", "Image (OCR)", "Audio (Voice/Upload)"],
         horizontal=True
     )
     
@@ -124,10 +141,9 @@ with tab1:
         if uploaded_file:
             st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
             
-            if st.button("Extract Text"):
+            if st.button("Extract Text from Image"):
                 with st.spinner("Processing image..."):
                     # Save temporarily
-                    import tempfile
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp:
                         tmp.write(uploaded_file.getvalue())
                         tmp_path = tmp.name
@@ -138,50 +154,144 @@ with tab1:
                     # Clean up
                     os.unlink(tmp_path)
                     
-                    if ocr_result['error']:
-                        st.error(f"OCR Error: {ocr_result['error']}")
-                    else:
-                        user_input = ocr_result['text']
-                        input_type = "image"
-                        
-                        st.success(f"Text extracted (confidence: {ocr_result['confidence']:.2f})")
-                        st.code(user_input)
-                        
-                        if ocr_result['low_confidence']:
-                            st.warning("OCR confidence is low. Please review and edit if needed.")
+                if ocr_result['error']:
+                    st.error(f"OCR Error: {ocr_result['error']}")
+                else:
+                    st.session_state.extracted_text_content = ocr_result['text']
+                    st.session_state.extracted_text_area = ocr_result['text']
+                    input_type = "image"
+                    
+                    st.success(f"✅ Text extracted (confidence: {ocr_result['confidence']:.2f})")
+                    
+                    if ocr_result['low_confidence']:
+                        st.warning("⚠️ OCR confidence is low. Please review and edit if needed.")
+        
+        # Display editable text area if we have content
+        if st.session_state.extracted_text_content is not None:
+             user_input = st.text_area(
+                "Verify and Edit Extracted Text:",
+                value=st.session_state.extracted_text_content,
+                height=150,
+                key="extracted_text_area"
+            )
+             input_type = "image"
     
-    elif input_method == "Audio":
-        audio_file = st.file_uploader(
-            "Upload an audio file:",
-            type=['wav', 'mp3', 'm4a']
+    elif input_method == "Audio (Voice/Upload)":
+        audio_option = st.radio(
+            "Choose audio input:",
+            ["🎤 Record Voice", "📁 Upload Audio File"],
+            horizontal=True
         )
         
-        if audio_file:
-            st.audio(audio_file)
+        if audio_option == "🎤 Record Voice":
+            st.info("Click the microphone button below to start recording. Click again to stop.")
             
-            if st.button("Transcribe Audio"):
-                with st.spinner("Transcribing..."):
-                    # Save temporarily
-                    import tempfile
-                    file_ext = audio_file.name.split('.')[-1]
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}') as tmp:
-                        tmp.write(audio_file.getvalue())
-                        tmp_path = tmp.name
-                    
-                    # Transcribe
-                    asr_result = asr.transcribe_audio(tmp_path)
-                    
-                    # Clean up
-                    os.unlink(tmp_path)
-                    
-                    if asr_result['error']:
-                        st.error(f"Transcription Error: {asr_result['error']}")
-                    else:
-                        user_input = asr_result['text']
-                        input_type = "audio"
+            # Audio recorder component
+            audio_bytes = audio_recorder(
+                text="Click to record",
+                recording_color="#e74c3c",
+                neutral_color="#3498db",
+                icon_size="2x",
+            )
+            
+            if audio_bytes and len(audio_bytes) > 0:
+                st.session_state.recorded_audio = audio_bytes
+                
+                # Display audio player
+                try:
+                    st.audio(audio_bytes, format="audio/wav")
+                except Exception as e:
+                    st.error("Error playing audio. Please try recording again.")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if st.button("✅ Approve & Transcribe"):
+                        with st.spinner("Transcribing your voice..."):
+                            # Save to temporary file
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
+                                tmp.write(audio_bytes)
+                                tmp_path = tmp.name
+                            
+                            # Transcribe
+                            asr_result = asr.transcribe_audio(tmp_path)
+                            
+                            # Clean up
+                            os.unlink(tmp_path)
+                            
+                            if asr_result['error']:
+                                st.error(f"❌ Transcription Error: {asr_result['error']}")
+                            else:
+                                # Normalize math text
+                                raw_text = asr_result['text']
+                                normalized_text = math_normalizer.normalize(raw_text)
+                                
+                                st.session_state.transcribed_text = normalized_text
+                                st.session_state.transcribed_text_area = normalized_text
+                                user_input = normalized_text
+                                input_type = "audio"
+                                
+                                st.success("✅ Transcription complete!")
+                                
+                                # Show segments if available
+                                if asr_result.get('segments'):
+                                    with st.expander("📊 Transcription Details"):
+                                        st.write(f"**Language detected:** {asr_result['language']}")
+                                        st.write(f"**Confidence:** {asr_result['confidence']:.2%}")
+                                        st.write(f"**Duration:** {asr_result['duration']:.1f}s")
+                
+                with col2:
+                    if st.button("🔄 Re-record"):
+                        st.session_state.recorded_audio = None
+                        st.session_state.transcribed_text = None
+                        st.rerun()
+        
+        else:  # Upload Audio File
+            audio_file = st.file_uploader(
+                "Upload an audio file:",
+                type=['wav', 'mp3', 'm4a', 'ogg']
+            )
+            
+            if audio_file:
+                st.audio(audio_file)
+                
+                if st.button("🎯 Transcribe Audio"):
+                    with st.spinner("Transcribing audio file..."):
+                        # Save temporarily
+                        file_ext = audio_file.name.split('.')[-1]
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}') as tmp:
+                            tmp.write(audio_file.getvalue())
+                            tmp_path = tmp.name
                         
-                        st.success("Transcription complete")
-                        st.code(user_input)
+                        # Transcribe
+                        asr_result = asr.transcribe_audio(tmp_path)
+                        
+                        # Clean up
+                        os.unlink(tmp_path)
+                        
+                        if asr_result['error']:
+                            st.error(f"❌ Transcription Error: {asr_result['error']}")
+                        else:
+                            # Normalize math text
+                            raw_text = asr_result['text']
+                            normalized_text = math_normalizer.normalize(raw_text)
+                            
+                            st.session_state.transcribed_text = normalized_text
+                            st.session_state.transcribed_text_area = normalized_text
+                            user_input = normalized_text
+                            input_type = "audio"
+                            
+                            st.success("✅ Transcription complete!")
+    
+    # Show transcribed text if exists (Editable)
+    if st.session_state.transcribed_text and input_method == "Audio (Voice/Upload)":
+         user_input = st.text_area(
+            "Verify and Edit Transcribed Text:",
+            value=st.session_state.transcribed_text,
+            height=150,
+            key="transcribed_text_area"
+        )
+         input_type = "audio"
     
     # Solve button
     if st.button("🚀 Solve Problem", type="primary", disabled=not user_input):
@@ -204,6 +314,10 @@ with tab1:
                 
                 # Add to history
                 st.session_state.interaction_history.append(final_state)
+                
+                # Reset audio state
+                st.session_state.recorded_audio = None
+                st.session_state.transcribed_text = None
                 
                 logger.info(f"Problem solved: {final_state['workflow_status']}")
     
@@ -248,13 +362,25 @@ with tab1:
             st.subheader("Final Answer")
             st.success(latest['final_answer'])
         
-        # Retrieved context
-        if show_context and latest.get('retrieved_context'):
-            with st.expander("📚 Retrieved Context"):
-                for i, doc in enumerate(latest['retrieved_context'], 1):
-                    st.markdown(f"**Source {i}**: {doc.get('source', 'N/A')} (Score: {doc.get('similarity_score', 0):.2f})")
-                    st.text(doc.get('content', '')[:200] + "...")
-                    st.markdown("---")
+        # Retrieved context (prominently displayed)
+        if latest.get('retrieved_context'):
+            st.markdown("---")
+            st.subheader("📚 Knowledge Base References")
+            
+            # Create a clean display for references
+            for i, doc in enumerate(latest['retrieved_context'], 1):
+                with st.container():
+                    # Title/Source
+                    title = doc.get('section_title') or doc.get('source', 'Reference')
+                    score = doc.get('similarity_score', 0)
+                    chunk_type = doc.get('chunk_type', 'general').title()
+                    
+                    st.markdown(f"**{i}. {title}** ({chunk_type})")
+                    # Show content preview or full content clearly
+                    st.info(doc.get('content', ''))
+                    st.caption(f"Relevance Score: {score:.2f} • Source: {doc.get('source', 'Unknown')}")
+            
+            st.markdown("---")
         
         # Agent trace
         if show_trace and latest.get('agent_trace'):
@@ -294,7 +420,7 @@ with tab3:
     
     st.markdown("""
     ### 🎯 Features
-    - **Multi-modal Input**: Text, Image (OCR), and Audio
+    - **Multi-modal Input**: Text, Image (OCR), and Audio (Voice Recording + Upload)
     - **Intelligent Parsing**: Extracts structured information from problems
     - **RAG-Enhanced**: Retrieves relevant context from knowledge base
     - **Step-by-Step Solutions**: Clear explanations for each step
