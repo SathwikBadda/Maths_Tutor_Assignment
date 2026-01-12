@@ -35,26 +35,39 @@ class OCRProcessor:
         try:
             self.logger.info(f"Processing image: {image_path}")
 
-            result = self.ocr.ocr(image_path)
+            # Explicitly pass cls=True to ensure consistent behavior
+            result = self.ocr.ocr(image_path, cls=True)
+            
+            # Debugging log
+            self.logger.info(f"OCR result type: {type(result)}")
+            if isinstance(result, list):
+                self.logger.info(f"OCR result len: {len(result)}")
 
-            # PaddleOCR >=2.7 returns a list of lists, each sublist is lines for one image
-            # Defensive: flatten if needed, handle empty
-            if not result or not isinstance(result, list) or not result[0]:
+            # PaddleOCR returns a list of results (one per image)
+            # Structure: [ [ [box, [text, conf]], ... ], ... ]
+            if result is None or len(result) == 0:
+                self.logger.warning("OCR returned empty result")
                 return self._empty_response()
 
-            # If result[0] is a tuple (box, (text, conf)), else result[0] is a list of such tuples
-            lines = result[0] if isinstance(result[0], list) else result
+            # Get result for the first image
+            image_result = result[0]
+            
+            if not image_result:
+                self.logger.warning("OCR found no text in image")
+                return self._empty_response()
 
             blocks, all_text, confidences = [], [], []
 
-            for line in lines:
-                # Defensive: line should be (bbox, (text, conf))
+            for line in image_result:
+                # Defensive checks for line structure
                 if not isinstance(line, (list, tuple)) or len(line) < 2:
                     continue
                 bbox = line[0]
                 text_conf = line[1]
+                
                 if not isinstance(text_conf, (list, tuple)) or len(text_conf) < 2:
                     continue
+                    
                 text = text_conf[0]
                 confidence = text_conf[1]
 
@@ -69,6 +82,9 @@ class OCRProcessor:
 
             return self._build_response(blocks, all_text, confidences)
 
+        except ValueError as ve:
+             self.logger.error(f"ValueError during OCR processing: {ve}", exc_info=True)
+             return self._error_response(ve)
         except Exception as e:
             self.logger.error("OCR processing failed", exc_info=True)
             return self._error_response(e)
@@ -80,16 +96,25 @@ class OCRProcessor:
             image = Image.open(io.BytesIO(image_bytes))
             image_array = np.array(image)
 
-            result = self.ocr.ocr(image_array)
+            # Explicitly pass cls=True
+            result = self.ocr.ocr(image_array, cls=True)
 
-            if not result or not isinstance(result, list) or not result[0]:
-                return self._empty_response()
+             # Debugging log
+            self.logger.info(f"OCR result type (bytes): {type(result)}")
 
-            lines = result[0] if isinstance(result[0], list) else result
+            if result is None or len(result) == 0:
+                 self.logger.warning("OCR returned empty result (bytes)")
+                 return self._empty_response()
+
+            image_result = result[0]
+            
+            if not image_result:
+                 self.logger.warning("OCR found no text in image (bytes)")
+                 return self._empty_response()
 
             blocks, all_text, confidences = [], [], []
 
-            for line in lines:
+            for line in image_result:
                 if not isinstance(line, (list, tuple)) or len(line) < 2:
                     continue
                 bbox = line[0]
@@ -110,6 +135,9 @@ class OCRProcessor:
 
             return self._build_response(blocks, all_text, confidences)
 
+        except ValueError as ve:
+             self.logger.error(f"ValueError during OCR processing (bytes): {ve}", exc_info=True)
+             return self._error_response(ve)
         except Exception as e:
             self.logger.error("OCR processing failed", exc_info=True)
             return self._error_response(e)
