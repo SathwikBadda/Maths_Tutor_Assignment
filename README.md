@@ -16,6 +16,7 @@ cd Maths_Tutor_Assignment
 
 ### 2. Python Environment
 - A virtual environment is provided in `maths/`.
+- Python version 3.9-3.10
 - To activate:
   ```bash
   source maths/bin/activate

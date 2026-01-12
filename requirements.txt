@@ -26,6 +26,6 @@ pydantic==2.10.3
 python-dotenv==1.0.1
 Pillow==11.0.0
 numpy
-
+audio_recorder_streamlit
 # Logging
 colorlog==6.9.0
