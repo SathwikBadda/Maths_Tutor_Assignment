@@ -32,3 +32,4 @@ paddleocr
 colorlog==6.9.0
 
 httpx==0.28.1
+paddlepaddle==3.2.2
