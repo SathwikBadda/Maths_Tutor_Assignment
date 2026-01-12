@@ -37,16 +37,26 @@ class OCRProcessor:
 
             result = self.ocr.ocr(image_path)
 
-            if not result or not result[0]:
+            # PaddleOCR >=2.7 returns a list of lists, each sublist is lines for one image
+            # Defensive: flatten if needed, handle empty
+            if not result or not isinstance(result, list) or not result[0]:
                 return self._empty_response()
+
+            # If result[0] is a tuple (box, (text, conf)), else result[0] is a list of such tuples
+            lines = result[0] if isinstance(result[0], list) else result
 
             blocks, all_text, confidences = [], [], []
 
-            for line in result[0]:
-                # ✅ SAFE parsing (FIX)
+            for line in lines:
+                # Defensive: line should be (bbox, (text, conf))
+                if not isinstance(line, (list, tuple)) or len(line) < 2:
+                    continue
                 bbox = line[0]
-                text = line[1][0]
-                confidence = line[1][1]
+                text_conf = line[1]
+                if not isinstance(text_conf, (list, tuple)) or len(text_conf) < 2:
+                    continue
+                text = text_conf[0]
+                confidence = text_conf[1]
 
                 blocks.append({
                     "text": text,
@@ -72,15 +82,22 @@ class OCRProcessor:
 
             result = self.ocr.ocr(image_array)
 
-            if not result or not result[0]:
+            if not result or not isinstance(result, list) or not result[0]:
                 return self._empty_response()
+
+            lines = result[0] if isinstance(result[0], list) else result
 
             blocks, all_text, confidences = [], [], []
 
-            for line in result[0]:
+            for line in lines:
+                if not isinstance(line, (list, tuple)) or len(line) < 2:
+                    continue
                 bbox = line[0]
-                text = line[1][0]
-                confidence = line[1][1]
+                text_conf = line[1]
+                if not isinstance(text_conf, (list, tuple)) or len(text_conf) < 2:
+                    continue
+                text = text_conf[0]
+                confidence = text_conf[1]
 
                 blocks.append({
                     "text": text,
