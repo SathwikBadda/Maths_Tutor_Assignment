@@ -22,17 +22,42 @@ class OCRProcessor:
         # Initialize PaddleOCR with minimal parameters to avoid conflicts
         # Note: use_gpu parameter is not available in all versions
         # CPU mode is enforced via paddle.set_device('cpu') above
+        
+        # Try multiple initialization strategies
+        init_success = False
+        
+        # Strategy 1: With angle classification
         try:
             self.ocr = PaddleOCR(
                 use_angle_cls=config.get('use_angle_cls', True),
                 lang=config.get('lang', 'en')
             )
-            self.logger.info("OCR processor initialized successfully")
+            self.logger.info("OCR processor initialized successfully with angle_cls")
+            init_success = True
         except Exception as e:
-            self.logger.error(f"Failed to initialize OCR: {e}")
-            # Fallback: try with absolute minimal config
-            self.ocr = PaddleOCR(lang='en')
-            self.logger.warning("OCR initialized with fallback minimal config")
+            self.logger.warning(f"Failed to initialize OCR with angle_cls: {e}")
+        
+        # Strategy 2: Without angle classification (more stable on some systems)
+        if not init_success:
+            try:
+                self.ocr = PaddleOCR(
+                    use_angle_cls=False,
+                    lang='en'
+                )
+                self.logger.info("OCR initialized without angle_cls (fallback)")
+                init_success = True
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize OCR without angle_cls: {e}")
+        
+        # Strategy 3: Absolute minimal config
+        if not init_success:
+            try:
+                self.ocr = PaddleOCR(lang='en')
+                self.logger.info("OCR initialized with minimal config (last resort)")
+                init_success = True
+            except Exception as e:
+                self.logger.error(f"All OCR initialization strategies failed: {e}")
+                raise RuntimeError("Could not initialize PaddleOCR. Check system dependencies.")
 
         self.confidence_threshold = config.get('confidence_threshold', 0.8)
 
