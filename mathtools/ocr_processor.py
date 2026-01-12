@@ -106,20 +106,54 @@ class OCRProcessor:
             # CRITICAL: Handle OCRResult object type (newer PaddleOCR versions)
             # Check if result[0] is an OCRResult object
             if hasattr(lines, '__class__') and 'OCRResult' in lines.__class__.__name__:
-                self.logger.info(f"Detected OCRResult object, attempting to extract data")
-                # Try to get the actual results from the object
-                if hasattr(lines, 'rec_res'):
-                    # rec_res contains the recognition results
+                self.logger.info(f"Detected OCRResult object, extracting data...")
+                
+                # Log all available attributes for debugging
+                attrs = [attr for attr in dir(lines) if not attr.startswith('_')]
+                self.logger.info(f"OCRResult attributes: {attrs}")
+                
+                # Try multiple possible attributes to extract the data
+                extracted = False
+                
+                # Try 1: rec_res (recognition results)
+                if hasattr(lines, 'rec_res') and lines.rec_res:
                     lines = lines.rec_res
-                    self.logger.info(f"Extracted rec_res: {type(lines)}")
-                elif hasattr(lines, 'boxes'):
-                    # Some versions use boxes attribute
-                    self.logger.warning("OCRResult has boxes but no rec_res, trying to extract")
-                    # This might not have text, just return empty
-                    return self._empty_response()
-                else:
-                    # Try to convert to list or dict
-                    self.logger.error(f"OCRResult object has unknown structure: {dir(lines)}")
+                    self.logger.info(f"Extracted from rec_res: {type(lines)}")
+                    extracted = True
+                
+                # Try 2: dt_polys + rec_text + rec_score (separate attributes)
+                elif hasattr(lines, 'rec_text') and hasattr(lines, 'rec_score'):
+                    # Build lines from separate attributes
+                    rec_texts = lines.rec_text if hasattr(lines, 'rec_text') else []
+                    rec_scores = lines.rec_score if hasattr(lines, 'rec_score') else []
+                    dt_polys = lines.dt_polys if hasattr(lines, 'dt_polys') else []
+                    
+                    self.logger.info(f"Building from separate attrs: {len(rec_texts)} texts, {len(rec_scores)} scores")
+                    
+                    # Construct the expected format: [[bbox, (text, score)], ...]
+                    lines = []
+                    for i in range(len(rec_texts)):
+                        bbox = dt_polys[i] if i < len(dt_polys) else [[0,0],[0,0],[0,0],[0,0]]
+                        text = rec_texts[i] if i < len(rec_texts) else ""
+                        score = rec_scores[i] if i < len(rec_scores) else 0.0
+                        lines.append([bbox, (text, score)])
+                    
+                    self.logger.info(f"Constructed {len(lines)} lines from OCRResult attributes")
+                    extracted = True
+                
+                # Try 3: Check if it's iterable and has text
+                elif hasattr(lines, '__iter__'):
+                    try:
+                        lines = list(lines)
+                        self.logger.info(f"Converted OCRResult to list: {len(lines)} items")
+                        extracted = True
+                    except:
+                        pass
+                
+                if not extracted:
+                    self.logger.error(f"Could not extract data from OCRResult. Available attrs: {attrs}")
+                    if hasattr(lines, '__dict__'):
+                        self.logger.error(f"OCRResult __dict__: {lines.__dict__}")
                     return self._empty_response()
             
             # CRITICAL: Validate that lines is actually a list of OCR results
@@ -260,17 +294,42 @@ class OCRProcessor:
 
             lines = result[0]
             
-            # Handle OCRResult object type (same as process_image)
+            # Handle OCRResult object type (same comprehensive handling as process_image)
             if hasattr(lines, '__class__') and 'OCRResult' in lines.__class__.__name__:
-                self.logger.info(f"Detected OCRResult object (bytes), attempting to extract data")
-                if hasattr(lines, 'rec_res'):
+                self.logger.info(f"Detected OCRResult object (bytes), extracting data...")
+                attrs = [attr for attr in dir(lines) if not attr.startswith('_')]
+                self.logger.info(f"OCRResult attributes (bytes): {attrs}")
+                
+                extracted = False
+                
+                if hasattr(lines, 'rec_res') and lines.rec_res:
                     lines = lines.rec_res
-                    self.logger.info(f"Extracted rec_res (bytes): {type(lines)}")
-                elif hasattr(lines, 'boxes'):
-                    self.logger.warning("OCRResult has boxes but no rec_res (bytes)")
-                    return self._empty_response()
-                else:
-                    self.logger.error(f"OCRResult object has unknown structure (bytes): {dir(lines)}")
+                    self.logger.info(f"Extracted from rec_res (bytes): {type(lines)}")
+                    extracted = True
+                elif hasattr(lines, 'rec_text') and hasattr(lines, 'rec_score'):
+                    rec_texts = lines.rec_text if hasattr(lines, 'rec_text') else []
+                    rec_scores = lines.rec_score if hasattr(lines, 'rec_score') else []
+                    dt_polys = lines.dt_polys if hasattr(lines, 'dt_polys') else []
+                    
+                    lines = []
+                    for i in range(len(rec_texts)):
+                        bbox = dt_polys[i] if i < len(dt_polys) else [[0,0],[0,0],[0,0],[0,0]]
+                        text = rec_texts[i] if i < len(rec_texts) else ""
+                        score = rec_scores[i] if i < len(rec_scores) else 0.0
+                        lines.append([bbox, (text, score)])
+                    
+                    self.logger.info(f"Constructed {len(lines)} lines from OCRResult (bytes)")
+                    extracted = True
+                elif hasattr(lines, '__iter__'):
+                    try:
+                        lines = list(lines)
+                        self.logger.info(f"Converted OCRResult to list (bytes): {len(lines)} items")
+                        extracted = True
+                    except:
+                        pass
+                
+                if not extracted:
+                    self.logger.error(f"Could not extract data from OCRResult (bytes). Attrs: {attrs}")
                     return self._empty_response()
             
             if not lines:
