@@ -71,16 +71,20 @@ class OCRProcessor:
             all_text = []
             confidences = []
             
+            
             for line in result[0]:
-                bbox, (text, confidence) = line
+                bbox = line[0]
+                text, confidence = line[1]
+
                 blocks.append({
-                    "text": text,
-                    "confidence": confidence,
-                    "bbox": bbox
+               "text": text,
+                  "confidence": confidence,
+                   "bbox": bbox
                 })
+
                 all_text.append(text)
                 confidences.append(confidence)
-            
+                  
             # Combine text
             full_text = " ".join(all_text)
             avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
@@ -145,12 +149,15 @@ class OCRProcessor:
             confidences = []
             
             for line in result[0]:
-                bbox, (text, confidence) = line
+                bbox = line[0]
+                text, confidence = line[1]
+
                 blocks.append({
-                    "text": text,
-                    "confidence": confidence,
+                  "text": text,
+                   "confidence": confidence,
                     "bbox": bbox
-                })
+                      })
+
                 all_text.append(text)
                 confidences.append(confidence)
             
