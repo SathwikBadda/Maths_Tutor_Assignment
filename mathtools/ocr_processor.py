@@ -50,7 +50,19 @@ class OCRProcessor:
             self.logger.info(f"Processing image: {image_path}")
 
             # Run OCR - DO NOT pass cls parameter, it's handled by use_angle_cls in init
-            result = self.ocr.ocr(image_path)
+            # Wrap in try-catch to handle potential std::exception from C++ code
+            try:
+                result = self.ocr.ocr(image_path)
+            except Exception as ocr_error:
+                self.logger.error(f"PaddleOCR internal error: {type(ocr_error).__name__}: {ocr_error}")
+                # Try to provide helpful error message
+                error_msg = str(ocr_error)
+                if "std::exception" in error_msg or "exception" in error_msg.lower():
+                    return self._error_response(
+                        "OCR engine error. This may be due to missing system libraries. "
+                        "Please ensure all dependencies are installed."
+                    )
+                return self._error_response(f"OCR failed: {error_msg}")
             
             # Debugging log
             self.logger.info(f"OCR result type: {type(result)}")
@@ -179,7 +191,17 @@ class OCRProcessor:
             image_array = np.array(image)
 
             # Run OCR - DO NOT pass cls parameter
-            result = self.ocr.ocr(image_array)
+            # Wrap in try-catch to handle potential std::exception from C++ code
+            try:
+                result = self.ocr.ocr(image_array)
+            except Exception as ocr_error:
+                self.logger.error(f"PaddleOCR internal error (bytes): {type(ocr_error).__name__}: {ocr_error}")
+                error_msg = str(ocr_error)
+                if "std::exception" in error_msg or "exception" in error_msg.lower():
+                    return self._error_response(
+                        "OCR engine error. This may be due to missing system libraries."
+                    )
+                return self._error_response(f"OCR failed: {error_msg}")
 
             # Debugging log
             self.logger.info(f"OCR result type (bytes): {type(result)}")
