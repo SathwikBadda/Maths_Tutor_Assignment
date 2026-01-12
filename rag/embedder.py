@@ -6,11 +6,11 @@ import logging
 
 class Embedder:
     """
-    Text embedder using mixedbread-ai/mxbai-embed-large-v1.
+    Text embedder using all-MiniLM-L6-v2.
     Uses HuggingFace cache (Streamlit-safe).
     """
 
-    def __init__(self, model_name: str = "mixedbread-ai/mxbai-embed-large-v1"):
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.logger = logging.getLogger("embedder")
         self.logger.info(f"Loading embedding model from HuggingFace: {model_name}")
 
