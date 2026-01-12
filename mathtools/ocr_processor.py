@@ -100,7 +100,27 @@ class OCRProcessor:
                 return self._empty_response()
 
             # Get the lines from the first image
+            # Handle different return types from PaddleOCR
             lines = result[0]
+            
+            # CRITICAL: Handle OCRResult object type (newer PaddleOCR versions)
+            # Check if result[0] is an OCRResult object
+            if hasattr(lines, '__class__') and 'OCRResult' in lines.__class__.__name__:
+                self.logger.info(f"Detected OCRResult object, attempting to extract data")
+                # Try to get the actual results from the object
+                if hasattr(lines, 'rec_res'):
+                    # rec_res contains the recognition results
+                    lines = lines.rec_res
+                    self.logger.info(f"Extracted rec_res: {type(lines)}")
+                elif hasattr(lines, 'boxes'):
+                    # Some versions use boxes attribute
+                    self.logger.warning("OCRResult has boxes but no rec_res, trying to extract")
+                    # This might not have text, just return empty
+                    return self._empty_response()
+                else:
+                    # Try to convert to list or dict
+                    self.logger.error(f"OCRResult object has unknown structure: {dir(lines)}")
+                    return self._empty_response()
             
             # CRITICAL: Validate that lines is actually a list of OCR results
             # Sometimes result[0] might be None or a dict
@@ -110,6 +130,9 @@ class OCRProcessor:
             
             if not isinstance(lines, list):
                 self.logger.error(f"OCR result[0] is not a list! Type: {type(lines)}")
+                # Log available attributes for debugging
+                if hasattr(lines, '__dict__'):
+                    self.logger.error(f"Object attributes: {lines.__dict__}")
                 return self._empty_response()
             
             if len(lines) == 0:
@@ -237,8 +260,25 @@ class OCRProcessor:
 
             lines = result[0]
             
+            # Handle OCRResult object type (same as process_image)
+            if hasattr(lines, '__class__') and 'OCRResult' in lines.__class__.__name__:
+                self.logger.info(f"Detected OCRResult object (bytes), attempting to extract data")
+                if hasattr(lines, 'rec_res'):
+                    lines = lines.rec_res
+                    self.logger.info(f"Extracted rec_res (bytes): {type(lines)}")
+                elif hasattr(lines, 'boxes'):
+                    self.logger.warning("OCRResult has boxes but no rec_res (bytes)")
+                    return self._empty_response()
+                else:
+                    self.logger.error(f"OCRResult object has unknown structure (bytes): {dir(lines)}")
+                    return self._empty_response()
+            
             if not lines:
                 self.logger.warning("OCR found no text in image (bytes)")
+                return self._empty_response()
+            
+            if not isinstance(lines, list):
+                self.logger.error(f"Lines is not a list (bytes)! Type: {type(lines)}")
                 return self._empty_response()
             
             # Parse results
