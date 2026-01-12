@@ -116,39 +116,43 @@ class OCRProcessor:
                 extracted = False
                 
                 # Try 1: rec_res (recognition results)
-                if hasattr(lines, 'rec_res') and lines.rec_res:
+                if hasattr(lines, 'rec_res') and lines.rec_res is not None:
                     lines = lines.rec_res
-                    self.logger.info(f"Extracted from rec_res: {type(lines)}")
+                    self.logger.info(f"Extracted from rec_res: {type(lines)}, len={len(lines) if isinstance(lines, list) else 'N/A'}")
                     extracted = True
                 
-                # Try 2: dt_polys + rec_text + rec_score (separate attributes)
+                # Try 2: dt_polys + rec_text + rec_score (separate attributes) - MOST LIKELY FOR CLOUD
                 elif hasattr(lines, 'rec_text') and hasattr(lines, 'rec_score'):
                     # Build lines from separate attributes
-                    rec_texts = lines.rec_text if hasattr(lines, 'rec_text') else []
-                    rec_scores = lines.rec_score if hasattr(lines, 'rec_score') else []
-                    dt_polys = lines.dt_polys if hasattr(lines, 'dt_polys') else []
+                    rec_texts = getattr(lines, 'rec_text', [])
+                    rec_scores = getattr(lines, 'rec_score', [])
+                    dt_polys = getattr(lines, 'dt_polys', [])
                     
-                    self.logger.info(f"Building from separate attrs: {len(rec_texts)} texts, {len(rec_scores)} scores")
+                    self.logger.info(f"Building from separate attrs: {len(rec_texts)} texts, {len(rec_scores)} scores, {len(dt_polys)} boxes")
                     
                     # Construct the expected format: [[bbox, (text, score)], ...]
-                    lines = []
+                    new_lines = []
                     for i in range(len(rec_texts)):
                         bbox = dt_polys[i] if i < len(dt_polys) else [[0,0],[0,0],[0,0],[0,0]]
                         text = rec_texts[i] if i < len(rec_texts) else ""
                         score = rec_scores[i] if i < len(rec_scores) else 0.0
-                        lines.append([bbox, (text, score)])
+                        new_lines.append([bbox, (text, score)])
                     
+                    lines = new_lines
                     self.logger.info(f"Constructed {len(lines)} lines from OCRResult attributes")
                     extracted = True
                 
-                # Try 3: Check if it's iterable and has text
-                elif hasattr(lines, '__iter__'):
-                    try:
-                        lines = list(lines)
-                        self.logger.info(f"Converted OCRResult to list: {len(lines)} items")
-                        extracted = True
-                    except:
-                        pass
+                # Try 3: Check for data or results attribute
+                elif hasattr(lines, 'data'):
+                    lines = lines.data
+                    self.logger.info(f"Extracted from data attribute: {type(lines)}")
+                    extracted = True
+                elif hasattr(lines, 'results'):
+                    lines = lines.results
+                    self.logger.info(f"Extracted from results attribute: {type(lines)}")
+                    extracted = True
+                
+                # DO NOT use list() conversion - it creates strings!
                 
                 if not extracted:
                     self.logger.error(f"Could not extract data from OCRResult. Available attrs: {attrs}")
@@ -302,31 +306,33 @@ class OCRProcessor:
                 
                 extracted = False
                 
-                if hasattr(lines, 'rec_res') and lines.rec_res:
+                if hasattr(lines, 'rec_res') and lines.rec_res is not None:
                     lines = lines.rec_res
                     self.logger.info(f"Extracted from rec_res (bytes): {type(lines)}")
                     extracted = True
                 elif hasattr(lines, 'rec_text') and hasattr(lines, 'rec_score'):
-                    rec_texts = lines.rec_text if hasattr(lines, 'rec_text') else []
-                    rec_scores = lines.rec_score if hasattr(lines, 'rec_score') else []
-                    dt_polys = lines.dt_polys if hasattr(lines, 'dt_polys') else []
+                    rec_texts = getattr(lines, 'rec_text', [])
+                    rec_scores = getattr(lines, 'rec_score', [])
+                    dt_polys = getattr(lines, 'dt_polys', [])
                     
-                    lines = []
+                    new_lines = []
                     for i in range(len(rec_texts)):
                         bbox = dt_polys[i] if i < len(dt_polys) else [[0,0],[0,0],[0,0],[0,0]]
                         text = rec_texts[i] if i < len(rec_texts) else ""
                         score = rec_scores[i] if i < len(rec_scores) else 0.0
-                        lines.append([bbox, (text, score)])
+                        new_lines.append([bbox, (text, score)])
                     
+                    lines = new_lines
                     self.logger.info(f"Constructed {len(lines)} lines from OCRResult (bytes)")
                     extracted = True
-                elif hasattr(lines, '__iter__'):
-                    try:
-                        lines = list(lines)
-                        self.logger.info(f"Converted OCRResult to list (bytes): {len(lines)} items")
-                        extracted = True
-                    except:
-                        pass
+                elif hasattr(lines, 'data'):
+                    lines = lines.data
+                    self.logger.info(f"Extracted from data attribute (bytes): {type(lines)}")
+                    extracted = True
+                elif hasattr(lines, 'results'):
+                    lines = lines.results
+                    self.logger.info(f"Extracted from results attribute (bytes): {type(lines)}")
+                    extracted = True
                 
                 if not extracted:
                     self.logger.error(f"Could not extract data from OCRResult (bytes). Attrs: {attrs}")
