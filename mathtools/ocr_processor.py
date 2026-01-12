@@ -54,7 +54,7 @@ class OCRProcessor:
             self.logger.info(f"Processing image: {image_path}")
             
             # Run OCR
-            result = self.ocr.ocr(image_path, cls=True)
+            result = self.ocr.ocr(image_path)
             
             if not result or not result[0]:
                 self.logger.warning("No text detected in image")
@@ -128,7 +128,7 @@ class OCRProcessor:
             image_array = np.array(image)
             
             # Run OCR
-            result = self.ocr.ocr(image_array, cls=True)
+            result = self.ocr.ocr(image_array)
             
             # Process results (same logic as process_image)
             if not result or not result[0]:
