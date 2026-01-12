@@ -27,9 +27,9 @@ python-dotenv==1.0.1
 Pillow==11.0.0
 numpy
 audio_recorder_streamlit
-paddleocr
+paddleocr==2.7.0.3
 # Logging
 colorlog==6.9.0
 
 httpx==0.28.1
-paddlepaddle
+paddlepaddle==2.6.1
