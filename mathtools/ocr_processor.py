@@ -20,19 +20,18 @@ class OCRProcessor:
         paddle.set_device('cpu')
         
         # Initialize PaddleOCR with minimal parameters to avoid conflicts
-        # Only pass essential parameters
+        # Note: use_gpu parameter is not available in all versions
+        # CPU mode is enforced via paddle.set_device('cpu') above
         try:
             self.ocr = PaddleOCR(
                 use_angle_cls=config.get('use_angle_cls', True),
-                lang=config.get('lang', 'en'),
-                use_gpu=False,  # Explicitly disable GPU
-                show_log=False  # Reduce noise
+                lang=config.get('lang', 'en')
             )
             self.logger.info("OCR processor initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize OCR: {e}")
             # Fallback: try with absolute minimal config
-            self.ocr = PaddleOCR(lang='en', use_gpu=False)
+            self.ocr = PaddleOCR(lang='en')
             self.logger.warning("OCR initialized with fallback minimal config")
 
         self.confidence_threshold = config.get('confidence_threshold', 0.8)
