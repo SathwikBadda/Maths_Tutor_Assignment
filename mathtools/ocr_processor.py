@@ -1,63 +1,49 @@
 from paddleocr import PaddleOCR
 from PIL import Image
 import numpy as np
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any
 import logging
 import io
+import paddle
+
 
 class OCRProcessor:
     """
     OCR processor using PaddleOCR for extracting text from images.
     Specialized for mathematical notation.
     """
-    
+
     def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize OCR processor.
-        
-        Args:
-            config: OCR configuration from config.yaml
-        """
         self.config = config
         self.logger = logging.getLogger("ocr_processor")
-        
-        # Initialize PaddleOCR
+
+        # 🔥 FIX 1: Disable angle classifier (causes PaddleX std::exception)
         self.ocr = PaddleOCR(
-            use_angle_cls=config.get('use_angle_cls', True),
+            use_angle_cls=False,   # ✅ CRITICAL FIX
             lang=config.get('lang', 'en')
-            
-            
         )
-        
-        # Force PaddleOCR to use CPU explicitly
-        import paddle
+
+        # Force CPU (already correct)
         paddle.set_device('cpu')
-        
-        # Debugging: Log PaddlePaddle device
         self.logger.info(f"PaddlePaddle device: {paddle.get_device()}")
-        
+
         self.confidence_threshold = config.get('confidence_threshold', 0.8)
-        
         self.logger.info("OCR processor initialized")
-    
+
+    def _load_image(self, image_path: str) -> np.ndarray:
+        """Safely load image as numpy array."""
+        image = Image.open(image_path).convert("RGB")
+        return np.array(image)
+
     def process_image(self, image_path: str) -> Dict[str, Any]:
-        """
-        Process an image and extract text with confidence scores.
-        
-        Args:
-            image_path: Path to the image file
-        
-        Returns:
-            Dictionary with extracted text and metadata
-        """
         try:
             self.logger.info(f"Processing image: {image_path}")
-            
-            # Run OCR
-            result = self.ocr.ocr(image_path)
-            
+
+            # 🔥 FIX 2: Always pass numpy array to PaddleOCR
+            image_array = self._load_image(image_path)
+            result = self.ocr.ocr(image_array)
+
             if not result or not result[0]:
-                self.logger.warning("No text detected in image")
                 return {
                     "text": "",
                     "confidence": 0.0,
@@ -65,39 +51,28 @@ class OCRProcessor:
                     "blocks": [],
                     "error": None
                 }
-            
-            # Extract text and confidence
+
             blocks = []
             all_text = []
             confidences = []
-            
-            
+
             for line in result[0]:
                 bbox = line[0]
                 text, confidence = line[1]
 
                 blocks.append({
-               "text": text,
-                  "confidence": confidence,
-                   "bbox": bbox
+                    "text": text,
+                    "confidence": confidence,
+                    "bbox": bbox
                 })
 
                 all_text.append(text)
                 confidences.append(confidence)
-                  
-            # Combine text
+
             full_text = " ".join(all_text)
-            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
-            
-            # Check if confidence is below threshold
+            avg_confidence = sum(confidences) / len(confidences)
             low_confidence = avg_confidence < self.confidence_threshold
-            
-            self.logger.info(
-                f"OCR completed: {len(blocks)} blocks, "
-                f"avg confidence: {avg_confidence:.3f}, "
-                f"low_confidence: {low_confidence}"
-            )
-            
+
             return {
                 "text": full_text,
                 "confidence": avg_confidence,
@@ -105,7 +80,7 @@ class OCRProcessor:
                 "blocks": blocks,
                 "error": None
             }
-        
+
         except Exception as e:
             self.logger.error(f"OCR processing failed: {str(e)}", exc_info=True)
             return {
@@ -115,26 +90,14 @@ class OCRProcessor:
                 "blocks": [],
                 "error": str(e)
             }
-    
+
     def process_image_bytes(self, image_bytes: bytes) -> Dict[str, Any]:
-        """
-        Process image from bytes.
-        
-        Args:
-            image_bytes: Image data as bytes
-        
-        Returns:
-            Dictionary with extracted text and metadata
-        """
         try:
-            # Convert bytes to numpy array
-            image = Image.open(io.BytesIO(image_bytes))
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             image_array = np.array(image)
-            
-            # Run OCR
+
             result = self.ocr.ocr(image_array)
-            
-            # Process results (same logic as process_image)
+
             if not result or not result[0]:
                 return {
                     "text": "",
@@ -143,28 +106,28 @@ class OCRProcessor:
                     "blocks": [],
                     "error": None
                 }
-            
+
             blocks = []
             all_text = []
             confidences = []
-            
+
             for line in result[0]:
                 bbox = line[0]
                 text, confidence = line[1]
 
                 blocks.append({
-                  "text": text,
-                   "confidence": confidence,
+                    "text": text,
+                    "confidence": confidence,
                     "bbox": bbox
-                      })
+                })
 
                 all_text.append(text)
                 confidences.append(confidence)
-            
+
             full_text = " ".join(all_text)
-            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+            avg_confidence = sum(confidences) / len(confidences)
             low_confidence = avg_confidence < self.confidence_threshold
-            
+
             return {
                 "text": full_text,
                 "confidence": avg_confidence,
@@ -172,7 +135,7 @@ class OCRProcessor:
                 "blocks": blocks,
                 "error": None
             }
-        
+
         except Exception as e:
             self.logger.error(f"OCR processing failed: {str(e)}", exc_info=True)
             return {
