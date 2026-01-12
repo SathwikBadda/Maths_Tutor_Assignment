@@ -7,7 +7,7 @@ llm:
 
 # RAG Configuration
 rag:
-  embedding_model: "mixedbread-ai_mxbai-embed-large-v1"
+  embedding_model: "mixedbread-ai/mxbai-embed-large-v1"
   vector_db_path: "./rag/vector_store/faiss_index"
   knowledge_base_path: "./rag/knowledge_base"
   chunk_size: 512
